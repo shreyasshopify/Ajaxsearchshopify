@@ -1,0 +1,82 @@
+
+$(document).ready(function(){
+
+  $('#pageheader .search-box input[type="text"]').bind('focusin focusout', function(e){
+    $(this).closest('.search-box').toggleClass('focus', e.type == 'focusin');
+  });
+
+  var preLoadLoadGif = $('<img src="{{ 'ajax-load.gif' | asset_url }}" />');
+  var searchTimeoutThrottle = 300;
+  var searchTimeoutID = -1;
+  var currReqObj = null;
+  var $resultsBox = $('<div class="results-box" />').appendTo('#pageheader .search-box');
+  
+  $('#pageheader .search-box input[type="text"]').bind('keyup change', function(){
+    if($(this).val().length > 0 && $(this).val() != $(this).data('oldval')) {
+      $resultsBox.fadeIn(100);
+      $(this).data('oldval', $(this).val());
+      if(currReqObj != null) currReqObj.abort();
+      clearTimeout(searchTimeoutID);
+      var $form = $(this).closest('form');
+      var term = '*' + $form.find('input[name="q"]').val() + '*';
+      var linkURL = $form.attr('action') + '?type=product&q=' + term;
+      $resultsBox.html('<div class="load"></div>');
+      searchTimeoutID = setTimeout(function(){
+        currReqObj = $.ajax({
+          url: $form.attr('action'),
+          data: {
+            type: 'product',
+            view: 'json',
+            q: term,
+          },
+          beforeSend: function() {
+            $resultsBox.html(preLoadLoadGif);
+          },
+          dataType: "json",
+          success: function(data){
+            currReqObj = null;
+            
+            if(data.results_total == 0) {
+              $resultsBox.html('<div class="note">'+ {{ 'Search No Results'  | json }} +'</div>');
+            } else {
+
+              $resultsBox.empty();
+              $.each(data.results, function(index, item){
+                var xshow = 'wholesale'; //term for products we dont want to show
+                if(!(item.title.toLowerCase().indexOf(xshow) > -1)) {
+                  var $row = $('<a class="serach-item"></a>').attr('href', item.url);
+                  $row.append('<div class="img"><img src="' + item.thumb + '" /></div>');
+                  $row.append('<div class="d-title">'+item.title+'</div>');
+                  $resultsBox.append($row);
+                }
+              });
+              $resultsBox.append('<a href="' + linkURL + '" class="note">{{ 'See All' }} </a>');
+               }
+              }
+            });
+           }, searchTimeoutThrottle);
+          } else if ($(this).val().length <= 1) {
+            $resultsBox.empty();
+            $resultsBox.fadeOut(100);
+          }})
+        .attr('autocomplete', 'off').data('oldval', '').bind('focusin', function(){
+
+        
+        }).bind('click', function(e){
+          e.stopPropagation();
+        });
+        $('body').bind('click', function(){
+         $resultsBox.fadeOut(200);
+          $( ".search-box-slect" ).val('');
+        });
+
+
+        $('.search-form, #search-form').on('submit', function(e){
+          e.preventDefault();
+          var term = $(this).find('input[name="q"]').val();
+          var linkURL = $(this).attr('action') + '?type=product&q=' + term;
+          window.location = linkURL;
+        });
+
+
+      });
